@@ -442,6 +442,17 @@ REFERENCIAS Y RECURSOS
 - Azure CLI: https://learn.microsoft.com/es-es/cli/azure/
 
 ================================================================================
+INFORMACIÓN DE ACTUALIZACIÓN
+================================================================================
+
+Documentación creada: Febrero 21, 2026
+Última actualización: Febrero 21, 2026
+Versión: 1.0
+
+Esta documentación proporciona una guía completa para crear y gestionar
+recursos de Azure Blob Storage utilizando la biblioteca cliente .NET.
+
+================================================================================
 FIN DE LA DOCUMENTACIÓN
 ================================================================================
 
