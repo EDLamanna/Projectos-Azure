@@ -1,0 +1,657 @@
+================================================================================
+DOCUMENTACIÓN: INTERCAMBIO DE ESPACIOS DE IMPLEMENTACIÓN EN AZURE APP SERVICE
+Swap deployment slots in Azure App Service
+================================================================================
+
+Fecha: Febrero 21, 2026
+Objetivo: Realizar un intercambio de espacios de implementación (deployment slots) 
+          en Azure App Service para promover cambios de staging a producción de 
+          manera segura.
+
+Duración estimada: 30 minutos
+
+================================================================================
+DESCRIPCIÓN DEL EJERCICIO
+================================================================================
+
+Este ejercicio enseña cómo utilizar los espacios de implementación (deployment slots)
+en Azure App Service para:
+
+1. Realizar actualizaciones seguras de aplicaciones
+2. Implementar estrategia de despliegue blue-green
+3. Probar cambios en un ambiente de staging antes de promoverlos a producción
+4. Minimizar el tiempo de inactividad durante las actualizaciones
+
+================================================================================
+TAREAS A REALIZAR EN ESTE EJERCICIO
+================================================================================
+
+✓ Descargar y desplegar la aplicación de ejemplo en Azure App Service
+✓ Crear un espacio de implementación de staging
+✓ Realizar cambios en el código de la aplicación de ejemplo
+✓ Desplegar los cambios al espacio de staging
+✓ Intercambiar los espacios de staging y producción para promover los cambios
+
+================================================================================
+PARTE 1: DESCARGAR Y DESPLEGAR LA APLICACIÓN DE EJEMPLO
+================================================================================
+
+1.1 ACCESO AL PORTAL DE AZURE Y CLOUD SHELL
+-----------------------------------------------
+
+Paso 1: Abre tu navegador y accede a Azure Portal
+Dirección: https://portal.azure.com
+
+Paso 2: Inicia sesión con tus credenciales de Azure
+
+Paso 3: Abre el Cloud Shell (Bash)
+Ubicación: Botón [>_] a la derecha de la barra de búsqueda en la parte superior
+Ambiente: Selecciona "Bash"
+
+Nota: Si se te pide seleccionar una cuenta de almacenamiento, elige 
+      "No storage account required" y luego "Apply"
+
+Paso 4: Configura el Cloud Shell a versión clásica
+En el menú Settings de la barra de herramientas del cloud shell:
+Selecciona: "Go to Classic version"
+
+Explicación: La versión clásica permite utilizar el editor de código integrado
+
+
+1.2 CLONAR EL REPOSITORIO DE LA APLICACIÓN DE EJEMPLO
+------------------------------------------------------
+
+Comando:
+--------
+git clone https://github.com/Azure-Samples/html-docs-hello-world.git
+
+Explicación:
+Este comando descarga un repositorio de GitHub que contiene una aplicación 
+HTML estática simple de ejemplo que será desplegada en Azure App Service.
+
+Resultado esperado:
+- Se crea un directorio llamado "html-docs-hello-world"
+- Contiene los archivos de la aplicación web estática
+
+
+1.3 DEFINIR VARIABLES PARA FACILITAR LOS COMANDOS
+---------------------------------------------------
+
+Comando 1:
+----------
+resourceGroup=rg-mywebapplod59336481
+
+Explicación:
+Define una variable que almacena el nombre del grupo de recursos a usar.
+Puedes cambiar "rg-mywebapplod59336481" por el nombre de tu grupo de recursos.
+
+Comando 2:
+----------
+appName=mywebapp59336481
+
+Explicación:
+Define una variable que almacena el nombre de la aplicación web.
+Este nombre debe ser único en Azure.
+
+Comando 3 (Verificación):
+-------------------------
+echo $appName
+
+Explicación:
+Muestra el valor de la variable appName para confirmar que está correctamente definida.
+
+Salida esperada: mywebapp59336481
+
+
+1.4 NAVEGAR AL DIRECTORIO Y DESPLEGAR LA APLICACIÓN
+-----------------------------------------------------
+
+Comando 1: Cambiar de directorio
+----------------------------------
+cd html-docs-hello-world
+
+Explicación:
+Cambia al directorio que contiene los archivos de la aplicación web que 
+fue clonado del repositorio de GitHub.
+
+
+Comando 2: Desplegar la aplicación en Azure App Service
+---------------------------------------------------------
+az webapp up -g $resourceGroup -n $appName --sku P0V3 --html
+
+Parámetros explicados:
+  -g $resourceGroup      : Especifica el grupo de recursos a usar
+  -n $appName            : Especifica el nombre de la aplicación web
+  --sku P0V3             : Define el plan de precios (Premium v3)
+  --html                 : Indica que es una aplicación HTML estática
+
+Tiempo esperado: Este comando puede tomar varios minutos en ejecutarse
+
+Salida esperada:
+- Se crea un plan de App Service
+- Se crea la aplicación web
+- Se despliegan los archivos
+- Se muestra la URL de la aplicación web
+
+Nota: Si es necesario, ejecuta "az login" o "az login --use-device-code" 
+      antes de este comando
+
+
+1.5 ACCEDER A LA APLICACIÓN WEB DESPLEGADA
+--------------------------------------------
+
+Paso 1: En el Portal de Azure, busca tu aplicación web
+Utiliza: G + / (atajo de búsqueda rápida)
+O click en el campo de búsqueda
+
+Paso 2: Ingresa el nombre de la aplicación: mywebapp59336481
+
+Paso 3: Selecciona tu aplicación web de los resultados
+
+Paso 4: En la sección "Essentials", busca el campo "Default domain"
+
+Paso 5: Click en el enlace para abrir la aplicación web en una nueva pestaña
+
+Resultado:
+Verás una página HTML que dice "Azure App Service - Sample Static HTML Site"
+
+
+================================================================================
+PARTE 2: CREAR Y ACTUALIZAR UN ESPACIO DE IMPLEMENTACIÓN (STAGING SLOT)
+================================================================================
+
+2.1 CREAR UN ESPACIO DE IMPLEMENTACIÓN STAGING
+-----------------------------------------------
+
+Comando:
+--------
+az webapp deployment slot create -n $appName -g $resourceGroup --slot staging
+
+Parámetros explicados:
+  -n $appName            : Nombre de la aplicación web
+  -g $resourceGroup      : Grupo de recursos
+  --slot staging         : Crea un espacio llamado "staging"
+
+Resultado esperado:
+- Se crea un nuevo espacio de implementación llamado "staging"
+- El slot se nombra automáticamente como: [appName]-staging
+- En tu caso: mywebapp59336481-staging
+
+Explicación:
+Un espacio de implementación (deployment slot) es una aplicación web independiente
+con su propio nombre de host. Los cambios se pueden probar en staging antes de
+promoverlos a producción.
+
+
+2.2 VERIFICAR EL ESPACIO DE STAGING CREADO
+--------------------------------------------
+
+En el Portal de Azure:
+
+Paso 1: Con tu aplicación web abierta, ve al menú izquierdo
+
+Paso 2: Selecciona: Deployment > Deployment slots
+
+Paso 3: Verifica que aparece tu slot de staging
+Deberías ver:
+  - Production (default)
+  - mywebapp59336481-staging (nuevo)
+
+
+2.3 EDITAR EL CÓDIGO HTML
+--------------------------
+
+Comando para abrir el editor:
+------------------------------
+code index.html
+
+Explicación:
+Abre el editor de código integrado del Cloud Shell para editar el archivo index.html
+
+Cambios a realizar:
+-------------------
+Localiza la etiqueta <h1> y cambia el contenido de:
+  
+ANTES:
+    Azure App Service - Sample Static HTML Site
+
+DESPUÉS (ejemplo):
+    Azure App Service Staging Slot
+
+O puedes usar cualquier otro texto que desees para identificar que es el slot de staging.
+
+Guardar y salir del editor:
+----------------------------
+Para guardar: Ctrl + S
+Para salir:   Ctrl + Q
+
+
+2.4 CREAR UN ARCHIVO ZIP CON LOS CAMBIOS
+------------------------------------------
+
+Comando:
+--------
+zip -r stagingcode.zip .
+
+Parámetros explicados:
+  -r                     : Recursivo (incluye todas las carpetas y archivos)
+  stagingcode.zip        : Nombre del archivo ZIP a crear
+  .                      : Incluye el directorio actual
+
+Resultado esperado:
+- Se crea el archivo "stagingcode.zip"
+- Contiene todos los archivos modificados del proyecto
+
+Explicación:
+Azure App Service requiere un archivo ZIP o WAR para desplegar la aplicación.
+Este archivo comprimido será enviado al espacio de staging.
+
+
+2.5 DESPLEGAR LOS CAMBIOS AL ESPACIO DE STAGING
+-------------------------------------------------
+
+Comando:
+--------
+az webapp deploy -g $resourceGroup -n $appName --src-path ./stagingcode.zip --slot staging
+
+Parámetros explicados:
+  -g $resourceGroup      : Grupo de recursos
+  -n $appName            : Nombre de la aplicación web
+  --src-path             : Ruta al archivo ZIP a desplegar (./stagingcode.zip)
+  --slot staging         : Desplegar específicamente al slot "staging"
+
+Resultado esperado:
+- Los archivos se cargan en Azure
+- Se extrae el ZIP en el slot de staging
+- La aplicación se actualiza con los nuevos cambios
+
+Tiempo esperado: Algunos minutos
+
+
+2.6 VERIFICAR LOS CAMBIOS EN EL SLOT DE STAGING
+-------------------------------------------------
+
+Paso 1: En el Portal de Azure, ve a Deployment > Deployment slots
+
+Paso 2: Click en el slot "staging" (mywebapp59336481-staging)
+
+Paso 3: En la sección "Essentials", busca el campo "Default domain" del staging
+
+Paso 4: Click en el enlace para abrir el sitio de staging en una nueva pestaña
+
+Resultado:
+Deberías ver tu cambio en la página. Por ejemplo:
+"Azure App Service Staging Slot" (en lugar del texto original)
+
+Nota: Si no ves el cambio inmediatamente, recarga la página (F5)
+
+
+================================================================================
+PARTE 3: INTERCAMBIAR (SWAP) LOS ESPACIOS DE STAGING Y PRODUCCIÓN
+================================================================================
+
+3.1 ABRIR EL PANEL DE INTERCAMBIO
+----------------------------------
+
+Opción 1: Desde la página principal de la aplicación web
+Paso 1: En el Portal, abre tu aplicación web en la sección de Overview
+Paso 2: En la barra de herramientas, busca el botón "Swap"
+Paso 3: Click en "Swap"
+
+Opción 2: Desde Deployment slots
+Paso 1: Ve a Deployment > Deployment slots
+Paso 2: En la barra de herramientas, click en "Swap"
+
+Explicación:
+El intercambio (swap) mueve el código del espacio de staging al espacio de
+producción sin tiempo de inactividad (zero downtime deployment).
+
+
+3.2 CONFIGURAR EL INTERCAMBIO
+-------------------------------
+
+En el panel "Swap" que aparece:
+
+Verifica la configuración:
+  - Source (Origen):  mywebapp59336481-staging
+  - Target (Destino): default (producción)
+
+Esta es la configuración correcta. No necesita cambios.
+
+Explicación:
+Source es el slot que tiene los cambios nuevos (staging)
+Target es el slot de producción donde irán los cambios
+
+Nota: Si necesitas cambiar la configuración, usa los dropdowns para seleccionar
+      qué slot es source y cuál es target.
+
+
+3.3 EJECUTAR EL INTERCAMBIO
+----------------------------
+
+Paso 1: En el panel "Swap", click en el botón "Start Swap"
+
+Paso 2: Espera a que se complete la operación
+
+Paso 3: Monitorea el progreso:
+  - Abre el Panel de Notificaciones (click en el ícono de campana 🔔 arriba a la derecha)
+  - Verás el estado del intercambio
+
+Tiempo esperado: Algunos minutos
+
+Resultado esperado:
+- Se muestra un mensaje de éxito
+- El intercambio se completa sin tiempo de inactividad
+
+
+3.4 VERIFICAR QUE LOS CAMBIOS ESTÁN EN PRODUCCIÓN
+---------------------------------------------------
+
+Paso 1: Busca tu aplicación web en el Portal de Azure
+Utiliza: G + / o la barra de búsqueda
+Ingresa: mywebapp59336481
+
+Paso 2: Enter a la aplicación web principal
+
+Paso 3: En la sección "Essentials", busca "Default domain"
+
+Paso 4: Click en el enlace para abrir la aplicación web de producción en nueva pestaña
+
+Paso 5: Verifica que ves tu cambio
+Deberías ver: "Azure App Service Staging Slot" (o el texto que hayas puesto)
+
+Paso 6: Si no ves los cambios, recarga la página
+Presiona: Ctrl + F5 (recarga forzada)
+
+¡Felicidades! Tus cambios han sido promovidos a producción exitosamente.
+
+
+================================================================================
+PARTE 4: LIMPIAR RECURSOS (OPCIONAL)
+================================================================================
+
+IMPORTANTE: Solo hacer esto si deseas eliminar todos los recursos creados.
+ADVERTENCIA: Esto eliminará TODOS los recursos del grupo de recursos.
+
+4.1 ELIMINAR EL GRUPO DE RECURSOS
+----------------------------------
+
+Opción 1: Desde el Portal de Azure
+
+Paso 1: Abre el Portal de Azure: https://portal.azure.com
+
+Paso 2: Busca tu grupo de recursos: rg-mywebapplod59336481
+
+Paso 3: Click en el grupo de recursos
+
+Paso 4: En la barra de herramientas, click en "Delete resource group"
+
+Paso 5: Confirma:
+  - Ingresa el nombre del grupo de recursos
+  - Click en "Delete"
+
+Paso 6: Espera a que se complete la eliminación
+
+
+Opción 2: Desde el Cloud Shell (línea de comandos)
+
+Comando:
+--------
+az group delete --name $resourceGroup --yes
+
+Parámetros explicados:
+  --name                 : Nombre del grupo de recursos a eliminar
+  --yes                  : Confirma la eliminación sin pedir confirmación
+
+ADVERTENCIA CRÍTICA:
+La eliminación de un grupo de recursos elimina TODOS los recursos dentro de él:
+  ✗ La aplicación web se eliminará
+  ✗ El plan de App Service se eliminará
+  ✗ Todos los espacios de implementación se eliminarán
+  ✗ Si usaste un grupo de recursos existente, otros recursos también se eliminarán
+
+
+================================================================================
+RESUMEN DE COMANDOS PRINCIPALES
+================================================================================
+
+1. Clonar la aplicación de ejemplo:
+   ────────────────────────────────
+   git clone https://github.com/Azure-Samples/html-docs-hello-world.git
+
+2. Definir variables:
+   ──────────────────
+   resourceGroup=rg-mywebapplod59336481
+   appName=mywebapp59336481
+
+3. Navegar y desplegar:
+   ────────────────────
+   cd html-docs-hello-world
+   az webapp up -g $resourceGroup -n $appName --sku P0V3 --html
+
+4. Crear slot de staging:
+   ──────────────────────
+   az webapp deployment slot create -n $appName -g $resourceGroup --slot staging
+
+5. Editar código:
+   ──────────────
+   code index.html
+   (Cambiar el <h1>)
+   Guardar: Ctrl + S
+   Salir: Ctrl + Q
+
+6. Crear ZIP con cambios:
+   ──────────────────────
+   zip -r stagingcode.zip .
+
+7. Desplegar a staging:
+   ────────────────────
+   az webapp deploy -g $resourceGroup -n $appName --src-path ./stagingcode.zip --slot staging
+
+8. Intercambiar slots (desde Portal):
+   ──────────────────────────────────
+   - IR a: Deployment > Deployment slots
+   - Click en "Swap"
+   - Verificar: Source = staging, Target = default
+   - Click "Start Swap"
+   - Esperar a que complete
+
+9. Limpiar recursos (CUIDADO):
+   ──────────────────────────
+   az group delete --name $resourceGroup --yes
+
+
+================================================================================
+CONCEPTOS CLAVE
+================================================================================
+
+¿QUÉ SON LOS DEPLOYMENT SLOTS?
+-------------------------------
+Los espacios de implementación son aplicaciones web independientes alojadas en
+el mismo plan de App Service. Permiten:
+
+✓ Probar cambios sin afectar a usuarios
+✓ Hacer rollback instantáneo si algo sale mal
+✓ Eliminar el tiempo de inactividad durante las actualizaciones
+✓ Implementar estrategia blue-green deployment
+
+VENTAJAS DEL INTERCAMBIO DE SLOTS
+----------------------------------
+1. CERO TIEMPO DE INACTIVIDAD (Zero Downtime Deployment)
+   Los usuarios no experimentan interrupciones del servicio
+
+2. ACTUALIZACIÓN RÁPIDA (Instant Swap)
+   El intercambio es prácticamente instantáneo
+
+3. ROLLBACK RÁPIDO (Quick Rollback)
+   Si algo sale mal, vuelves a cambiar en segundos
+
+4. AMBIENTE DE PRUEBA COMPLETO
+   El staging tiene exactamente el mismo ambiente que producción
+
+5. CONFIGURACIÓN SINCRONIZADA
+   Las variables de entorno se pueden intercambiar con los slots
+
+CASOS DE USO
+------------
+✓ Actualizaciones de aplicaciones web
+✓ Cambios de contenido HTML/CSS/JavaScript
+✓ Migraciones de base de datos
+✓ Cambios de configuración
+✓ Pruebas A/B
+✓ Despliegues de emergencia
+
+
+================================================================================
+FLUJO DE TRABAJO RECOMENDADO
+================================================================================
+
+1. DESARROLLO
+   └─ Hacer cambios en una rama local
+   
+2. STAGING
+   ├─ Crear un slot de staging
+   ├─ Desplegar cambios al staging
+   └─ Probar cambios sin afectar producción
+
+3. VALIDACIÓN
+   ├─ Realizar pruebas completas en staging
+   ├─ Verificar compatibilidad
+   └─ Confirmar que todo funciona
+
+4. INTERCAMBIO
+   ├─ Hacer swap de staging a producción
+   └─ Validar que producción funciona correctamente
+
+5. MONITOREO
+   ├─ Monitorear la aplicación en producción
+   └─ Rollback rápido si es necesario
+
+
+================================================================================
+TROUBLESHOOTING - PROBLEMAS COMUNES
+================================================================================
+
+PROBLEMA: El comando "az webapp up" falla
+───────────────────────────────────────
+Solución 1: Ejecutar az login
+  ash
+  az login
+
+Solución 2: Usar device code flow
+  bash
+  az login --use-device-code
+
+
+PROBLEMA: No veo el cambio después del swap
+───────────────────────────────────────────
+Solución: Recargar el navegador con cache limpio
+  Presiona: Ctrl + F5 (o Cmd + Shift + R en Mac)
+
+O desde el navegador:
+  1. Presiona F12 para abrir developer tools
+  2. Click derecho en el botón refresh
+  3. Selecciona "Empty cache and hard refresh"
+
+
+PROBLEMA: Variables $resourceGroup o $appName no funcionan
+──────────────────────────────────────────────────────────
+Solución: Verificar que las variables están definidas
+  bash
+  echo $resourceGroup
+  echo $appName
+
+Si están vacías, redefínelas:
+  bash
+  resourceGroup=rg-mywebapplod59336481
+  appName=mywebapp59336481
+
+
+PROBLEMA: Swap toma mucho tiempo
+────────────────────────────────
+Solución: Consultar el panel de notificaciones
+  1. Click en el ícono de campana (🔔) en la esquina superior derecha
+  2. Verifica el estado del swap
+  3. Espera a que complete
+
+Nota: Los slots más pequeños completan el swap más rápido
+
+
+PROBLEMA: Error de permisos al eliminar recurso
+───────────────────────────────────────────────
+Solución: Verifica tus permisos en el grupo de recursos
+  1. Asegúrate de ser propietario o tener permisos de administrador
+  2. Si es un grupo de recursos compartido, contacta al administrador
+
+
+================================================================================
+NOTAS IMPORTANTES
+================================================================================
+
+1. NOMBRES ÚNICOS
+   Los nombres de aplicaciones web en Azure deben ser únicos globalmente.
+   Si el nombre ya existe, elige otro.
+
+2. PLAN DE PRECIOS
+   El SKU P0V3 (Premium v3) es recomendado para slots.
+   Los slots solo funcionan en planes Standard, Premium y aislados.
+
+3. SEGURIDAD
+   El intercambio no requiere detener los servicios.
+   La transacción es instantánea y segura.
+
+4. CONFIGURACIÓN
+   Las configuraciones de aplicación pueden no intercambiarse automáticamente.
+   Verifica qué configuraciones necesitan ser "stuck" a un slot específico.
+
+5. LÍMITES DE SLOTS
+   El número de slots disponibles depende de tu plan de precios:
+   - Free/Shared: 0 slots adicionales
+   - Standard: hasta 4 slots
+   - Premium: hasta 20 slots
+   - Aislado: hasta 20 slots
+
+
+================================================================================
+REFERENCIAS Y ENLACES ÚTILES
+================================================================================
+
+Portal de Azure: https://portal.azure.com
+
+Documentación oficial:
+- Deployment slots: https://docs.microsoft.com/en-us/azure/app-service/deploy-staging-slots
+- Azure CLI webapp: https://docs.microsoft.com/en-us/cli/azure/webapp
+
+Repositorio de ejemplos:
+- html-docs-hello-world: https://github.com/Azure-Samples/html-docs-hello-world
+
+Azure CLI Documentation: https://docs.microsoft.com/en-us/cli/azure/
+
+
+================================================================================
+CONCLUSIÓN
+================================================================================
+
+Has completado exitosamente el ejercicio de intercambio de espacios de 
+implementación en Azure App Service. Con este conocimiento puedes:
+
+✓ Desplegar aplicaciones web de forma segura a Azure
+✓ Usar slots de staging para probar cambios
+✓ Promover cambios a producción sin tiempo de inactividad
+✓ Implementar estrategias de blue-green deployment
+✓ Hacer rollback instantáneo si es necesario
+
+Esto es una práctica recomendada en DevOps y permite que los equipos desplieguen
+cambios con confianza y velocidad.
+
+¡Felicidades por completar este ejercicio!
+
+
+================================================================================
+FIN DE LA DOCUMENTACIÓN
+================================================================================
+
+Generado: Febrero 21, 2026
+Versión: 1.0 - Español
+Duración del ejercicio: Aproximadamente 30 minutos
+Nivel: Intermedio
