@@ -1,0 +1,349 @@
+================================================================================
+DOCUMENTACIÓN: CREAR APLICACIÓN WEB AZURE APP SERVICE CON CONTENEDOR
+================================================================================
+
+Fecha: Febrero 21, 2026
+Objetivo: Crear una aplicación web de Azure App Service configurada para ejecutar 
+          una aplicación en contenedores usando Microsoft Container Registry (MCR)
+
+================================================================================
+PASO 0: VERIFICAR GRUPOS DE RECURSOS DISPONIBLES
+================================================================================
+
+Comando:
+--------
+az group list --output table
+
+Resultado:
+----------
+Name                  Location    Status
+--------------------  ----------  ---------
+rg-WebApplod59336323  eastus      Succeeded
+
+Explicación:
+Este comando lista todos los grupos de recursos disponibles en la suscripción.
+Se identifica que existe el grupo "rg-WebApplod59336323" en la región "eastus"
+que será usado para crear los recursos.
+
+================================================================================
+PASO 1: CREAR EL PLAN DE APP SERVICE (ASP)
+================================================================================
+
+Comando:
+--------
+az appservice plan create \
+  --name ASP-rg-WebApp59336323 \
+  --resource-group rg-WebApplod59336323 \
+  --sku F1 \
+  --is-linux
+
+Parámetros:
+-----------
+--name: ASP-rg-WebApp59336323
+  Nombre del plan de App Service
+
+--resource-group: rg-WebApplod59336323
+  Grupo de recursos donde se creará el plan
+
+--sku: F1
+  Plan de precios GRATUITO (Free Tier)
+
+--is-linux
+  Especifica que es un plan Linux
+
+Resultado:
+----------
+{
+  "asyncScalingEnabled": false,
+  "elasticScaleEnabled": false,
+  "geoRegion": "East US",
+  "hyperV": false,
+  "id": "/subscriptions/b542fc0e-27b6-4e98-aade-a41620ffcf2c/resourceGroups/
+         rg-WebApplod59336323/providers/Microsoft.Web/serverfarms/
+         ASP-rg-WebApp59336323",
+  "isCustomMode": false,
+  "isSpot": false,
+  "isXenon": false,
+  "kind": "linux",
+  "location": "eastus",
+  "maximumElasticWorkerCount": 1,
+  "maximumNumberOfWorkers": 0,
+  "name": "ASP-rg-WebApp59336323",
+  "numberOfSites": 0,
+  "numberOfWorkers": 1,
+  "perSiteScaling": false,
+  "provisioningState": "Succeeded",
+  "reserved": true,
+  "resourceGroup": "rg-WebApplod59336323",
+  "sku": {
+    "capacity": 1,
+    "family": "U",
+    "name": "U13",
+    "size": "U13",
+    "tier": "LinuxFree"
+  },
+  "status": "Ready",
+  "subscription": "b542fc0e-27b6-4e98-aade-a41620ffcf2c",
+  "targetWorkerCount": 0,
+  "targetWorkerSizeId": 0,
+  "type": "Microsoft.Web/serverfarms",
+  "zoneRedundant": false
+}
+
+Estado: ✅ CREADO EXITOSAMENTE
+Estado de Provisión: Succeeded
+Estatus: Ready
+
+Explicación:
+El plan App Service es el contenedor que aloja la aplicación web. El SKU F1 es
+el plan gratuito de Azure. El parámetro --is-linux indica que es un plan para
+contenedores Linux. 
+
+================================================================================
+PASO 2: CREAR LA APLICACIÓN WEB CON IMAGEN DE CONTENEDOR
+================================================================================
+
+Comando:
+--------
+az webapp create \
+  --resource-group rg-WebApplod59336323 \
+  --plan ASP-rg-WebApp59336323 \
+  --name containerwebapp59336323 \
+  --deployment-container-image-name mcr.microsoft.com/k8se:quickstart:latest
+
+Parámetros:
+-----------
+--resource-group: rg-WebApplod59336323
+  Grupo de recursos donde se crea la web app
+
+--plan: ASP-rg-WebApp59336323
+  Plan de App Service creado en el paso anterior
+
+--name: containerwebapp59336323
+  Nombre único de la aplicación web
+
+--deployment-container-image-name: mcr.microsoft.com/k8se:quickstart:latest
+  Imagen de contenedor de Microsoft Container Registry
+  Formato: [servidor]/[imagen]:[etiqueta]
+
+Resultado:
+----------
+La aplicación web se crea exitosamente con la siguiente información:
+
+- defaultHostName: containerwebapp59336323.azurewebsites.net
+- ftpPublishingUrl: ftps://waws-prod-blu-593.ftp.azurewebsites.windows.net/site/wwwroot
+- enabled: true
+- enabledHostNames: 
+  * containerwebapp59336323.azurewebsites.net
+  * containerwebapp59336323.scm.azurewebsites.net
+- customDomainVerificationId: A9D0F00D8860E5C5BA03C96B3D860E31135257F7F5F832D790648413B6C4460B
+
+Estado: ✅ CREADO EXITOSAMENTE
+
+Nota: Se muestra una advertencia de deprecación pero no afecta la funcionalidad.
+Mensaje: "Option '--deployment-container-image-name' has been deprecated and will 
+be removed in a future release."
+
+Explicación:
+Este comando crea la aplicación web vinculada al plan especificado e inmediatamente
+configura la imagen de contenedor que se ejecutará. La aplicación ahora está 
+disponible en la URL: https://containerwebapp59336323.azurewebsites.net
+
+================================================================================
+PASO 3: CONFIGURAR LA IMAGEN DE CONTENEDOR DESDE MICROSOFT CONTAINER REGISTRY
+================================================================================
+
+Comando:
+--------
+az webapp config container set \
+  --name containerwebapp59336323 \
+  --resource-group rg-WebApplod59336323 \
+  --docker-custom-image-name mcr.microsoft.com/k8se:quickstart:latest \
+  --docker-registry-server-url https://mcr.microsoft.com
+
+Parámetros:
+-----------
+--name: containerwebapp59336323
+  Nombre de la aplicación web a configurar
+
+--resource-group: rg-WebApplod59336323
+  Grupo de recursos de la aplicación
+
+--docker-custom-image-name: mcr.microsoft.com/k8se:quickstart:latest
+  Imagen completa del contenedor incluyendo servidor y etiqueta
+
+--docker-registry-server-url: https://mcr.microsoft.com
+  URL del servidor de registro de contenedores (Microsoft Container Registry)
+
+Resultado:
+----------
+Se devuelven las variables de entorno configuradas:
+
+[
+  {
+    "name": "WEBSITES_ENABLE_APP_SERVICE_STORAGE",
+    "slotSetting": false,
+    "value": "false"
+  },
+  {
+    "name": "DOCKER_REGISTRY_SERVER_URL",
+    "slotSetting": false,
+    "value": "https://mcr.microsoft.com"
+  },
+  {
+    "name": "DOCKER_CUSTOM_IMAGE_NAME",
+    "value": "DOCKER|mcr.microsoft.com/k8se:quickstart:latest"
+  }
+]
+
+Estado: ✅ CONFIGURADO EXITOSAMENTE
+
+Variables de Entorno Establecidas:
+- WEBSITES_ENABLE_APP_SERVICE_STORAGE: false (almacenamiento deshabilitado)
+- DOCKER_REGISTRY_SERVER_URL: https://mcr.microsoft.com
+- DOCKER_CUSTOM_IMAGE_NAME: DOCKER|mcr.microsoft.com/k8se:quickstart:latest
+
+Nota: Se muestra advertencia de deprecación pero no afecta la funcionalidad.
+El parámetro --docker-custom-image-name se puede reemplazar con --container-image-name
+en versiones futuras de Azure CLI.
+
+Explicación:
+Este comando configura específicamente los parámetros de contenedor para que la
+aplicación web use la imagen de Microsoft Container Registry. Establece la URL
+del registro y especifica qué imagen usar.
+
+================================================================================
+PASO 4: VERIFICAR LA CONFIGURACIÓN FINAL
+================================================================================
+
+Comando:
+--------
+az webapp show \
+  --name containerwebapp59336323 \
+  --resource-group rg-WebApplod59336323 \
+  --output table
+
+Resultado:
+----------
+Name                     Location    State    ResourceGroup         DefaultHostName
+-----------------------  ----------  -------  --------------------  -----------------------------------------------
+containerwebapp59336323  East US     Running  rg-WebApplod59336323  containerwebapp59336323.azurewebsites.net
+
+Estado: ✅ APLICACIÓN WEB EN EJECUCIÓN
+
+Explicación:
+Este comando final verifica que la aplicación web está en estado "Running" y
+proporciona la URL de acceso: https://containerwebapp59336323.azurewebsites.net
+
+================================================================================
+RESUMEN DE CONFIGURACIÓN FINAL
+================================================================================
+
+Aplicación Web:
+  - Nombre: containerwebapp59336323
+  - URL: https://containerwebapp59336323.azurewebsites.net
+  - Estado: Running
+  - Región: East US
+  - Grupo de Recursos: rg-WebApplod59336323
+  - Sistema Operativo: Linux
+
+Plan App Service:
+  - Nombre: ASP-rg-WebApp59336323
+  - Plan de Precios: F1 (Gratuito)
+  - Sistema Operativo: Linux
+  - Estado: Ready
+
+Configuración de Contenedor:
+  - Fuente: Otros registros de contenedores (Microsoft Container Registry)
+  - URL del Servidor: https://mcr.microsoft.com
+  - Imagen: mcr.microsoft.com/k8se
+  - Etiqueta: quickstart:latest
+  - Tipo de Acceso: Público (predeterminado)
+  - Soporte para Sidecar: Desactivado
+  - Comando de Inicio: En blanco (usa el default del contenedor)
+
+================================================================================
+COMANDOS RÁPIDOS DE REFERENCIA
+================================================================================
+
+Para listar grupos de recursos:
+az group list --output table
+
+Para crear un plan App Service:
+az appservice plan create --name <nombre> --resource-group <grupo> --sku F1 --is-linux
+
+Para crear una web app con contenedor:
+az webapp create --resource-group <grupo> --plan <plan> --name <nombre> \
+  --deployment-container-image-name <imagen>:<etiqueta>
+
+Para configurar la imagen de contenedor:
+az webapp config container set --name <nombre> --resource-group <grupo> \
+  --docker-custom-image-name <imagen>:<etiqueta> \
+  --docker-registry-server-url <url-registro>
+
+Para verificar el estado:
+az webapp show --name <nombre> --resource-group <grupo> --output table
+
+================================================================================
+NOTAS IMPORTANTES
+================================================================================
+
+1. Autenticación: Se usó Azure CLI (az) que requiere estar autenticado con 
+   "az login" antes de ejecutar los comandos.
+
+2. Grupo de Recursos: Es importante verificar que el grupo de recursos existe
+   antes de crear los recursos (Paso 0).
+
+3. Plan de Precios F1: Es el plan gratuito pero tiene limitaciones:
+   - 60 minutos de tiempo de ejecución por día
+   - Máximo 1GB de almacenamiento
+   - Máximo 1 instancia compartida
+   - Ideal para desarrollo y pruebas
+
+4. Microsoft Container Registry (MCR): Es un registro público de Microsoft
+   que no requiere credenciales de autenticación para imágenes públicas.
+
+5. La imagen quickstart:latest utilizada es un ejemplo simple de Microsoft
+   que está disponible públicamente en MCR.
+
+6. Advertencias de Deprecación: Algunos parámetros mostran advertencias sobre
+   deprecación, pero siguen funcionando correctamente. En futuras versiones
+   pueden necesitar actualización.
+
+================================================================================
+PRÓXIMOS PASOS OPCIONALES
+================================================================================
+
+1. Verificar los logs de la aplicación:
+   az webapp log tail --name containerwebapp59336323 \
+     --resource-group rg-WebApplod59336323
+
+2. Configurar variables de entorno adicionales:
+   az webapp config appsettings set --name containerwebapp59336323 \
+     --resource-group rg-WebApplod59336323 \
+     --settings KEY=VALUE
+
+3. Vincular un dominio personalizado:
+   az webapp config hostname add --webapp-name containerwebapp59336323 \
+     --resource-group rg-WebApplod59336323 \
+     --hostname <su-dominio>
+
+4. Configurar SSL/TLS:
+   az webapp config ssl bind --name containerwebapp59336323 \
+     --resource-group rg-WebApplod59336323 \
+     --certificate-thumbprint <thumbprint>
+
+5. Escalar la aplicación a un plan de pago:
+   az appservice plan update --name ASP-rg-WebApp59336323 \
+     --resource-group rg-WebApplod59336323 \
+     --sku B1
+
+================================================================================
+FIN DE LA DOCUMENTACIÓN
+================================================================================
+
+Esta documentación fue generada con los comandos y pasos que funcionaron
+exitosamente para crear una aplicación web de Azure App Service con soporte
+para contenedores ejecutándose en Linux con una imagen de Microsoft Container Registry.
+
+Todos los pasos fueron realizados correctamente con estado "Succeeded" o "Running".
