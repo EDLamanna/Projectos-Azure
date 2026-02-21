@@ -1,0 +1,447 @@
+================================================================================
+DOCUMENTACIÓN: CREAR RECURSOS DE ALMACENAMIENTO DE BLOBS CON .NET
+================================================================================
+
+DESCRIPCIÓN GENERAL:
+En este ejercicio se crea una cuenta de Azure Storage y una aplicación de consola 
+.NET con la biblioteca cliente de Azure Storage Blob para crear contenedores, 
+cargar archivos en el almacenamiento de blobs, listarlos y descargarlos.
+
+DURACIÓN ESTIMADA: 30 minutos
+
+TAREAS REALIZADAS:
+1. Preparar los recursos de Azure
+2. Crear una aplicación de consola para crear y descargar datos
+3. Ejecutar la aplicación y verificar los resultados
+4. Limpiar recursos
+
+================================================================================
+PASO 1: CREAR UNA CUENTA DE AZURE STORAGE
+================================================================================
+
+1.1 - Acceder al Azure Portal
+URL: https://portal.azure.com
+
+1.2 - Crear Cloud Shell
+- Seleccionar el botón [>_] a la derecha de la barra de búsqueda
+- Seleccionar ambiente Bash
+- Si se solicita, seleccionar "No storage account required"
+
+1.3 - Cambiar a versión clásica
+- En la barra de herramientas, Configuración > Ir a la versión clásica
+- Nota: Si el shell es PowerShell, cambiarlo a Bash
+
+1.4 - CREAR GRUPO DE RECURSOS
+Comando:
+----
+az group create --location eastus2 --name myResourceGroup
+----
+
+NOTA: Si ya existe el grupo (ej: myResourceGrouplod59336890), omitir este paso.
+
+================================================================================
+PASO 2: CREAR VARIABLES DE ENTORNO
+================================================================================
+
+Ejecutar estos comandos para crear variables de configuración:
+----
+resourceGroup=myResourceGrouplod59336890
+location=eastus
+accountName=storageacct$RANDOM
+----
+
+Explicación:
+- resourceGroup: Nombre del grupo de recursos
+- location: Región donde se crearán los recursos
+- accountName: Nombre único de la cuenta de almacenamiento (con número aleatorio)
+
+================================================================================
+PASO 3: CREAR LA CUENTA DE AZURE STORAGE
+================================================================================
+
+Comando para crear la cuenta:
+----
+az storage account create --name $accountName \
+    --resource-group $resourceGroup \
+    --location $location \
+    --sku Standard_LRS
+----
+
+Verificar el nombre de la cuenta creado:
+----
+echo $accountName
+----
+
+NOTA: Guardar el nombre de la cuenta para usarlo en el código C#.
+
+================================================================================
+PASO 4: ASIGNAR ROLES DE SEGURIDAD
+================================================================================
+
+OBJETIVO: Asignar al usuario Microsoft Entra el rol de "Storage Blob Data Owner"
+
+4.1 - Obtener el nombre principal del usuario:
+----
+userPrincipal=$(az rest --method GET --url https://graph.microsoft.com/v1.0/me \
+    --headers 'Content-Type=application/json' \
+    --query userPrincipalName --output tsv)
+----
+
+4.2 - Obtener el ID de recurso de la cuenta de almacenamiento:
+----
+resourceID=$(az storage account show --name $accountName \
+    --resource-group $resourceGroup \
+    --query id --output tsv)
+----
+
+4.3 - Crear y asignar el rol:
+----
+az role assignment create --assignee $userPrincipal \
+    --role "Storage Blob Data Owner" \
+    --scope $resourceID
+----
+
+================================================================================
+PASO 5: CREAR LA APLICACIÓN DE CONSOLA .NET
+================================================================================
+
+5.1 - Crear directorio del proyecto:
+----
+mkdir azstor
+cd azstor
+----
+
+5.2 - Crear la aplicación de consola .NET:
+----
+dotnet new console
+----
+
+5.3 - Agregar paquetes NuGet necesarios:
+----
+dotnet add package Azure.Storage.Blobs
+dotnet add package Azure.Identity
+----
+
+5.4 - Crear la carpeta de datos:
+----
+mkdir data
+----
+
+================================================================================
+PASO 6: CÓDIGO DEL PROGRAMA (Program.cs)
+================================================================================
+
+DESCRIPCIÓN: Este archivo contiene toda la lógica de la aplicación para 
+trabajar con Azure Blob Storage.
+
+Comando para editar:
+----
+code Program.cs
+----
+
+CÓDIGO COMPLETO A INSERTAR:
+================================================================================
+
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
+using Azure.Identity;
+
+Console.WriteLine("Azure Blob Storage exercise\n");
+
+// Create a DefaultAzureCredentialOptions object to configure the DefaultAzureCredential
+DefaultAzureCredentialOptions options = new()
+{
+    ExcludeEnvironmentCredential = true,
+    ExcludeManagedIdentityCredential = true
+};
+
+// Run the examples asynchronously, wait for the results before proceeding
+await ProcessAsync();
+
+Console.WriteLine("\nPress enter to exit the sample application.");
+Console.ReadLine();
+
+async Task ProcessAsync()
+{
+    // CREATE A BLOB STORAGE CLIENT
+    
+    // Create a credential using DefaultAzureCredential with configured options
+    string accountName = "YOUR_ACCOUNT_NAME"; // Replace with your storage account name
+
+    // Use the DefaultAzureCredential with the options configured at the top of the program
+    DefaultAzureCredential credential = new DefaultAzureCredential(options);
+
+    // Create the BlobServiceClient using the endpoint and DefaultAzureCredential
+    string blobServiceEndpoint = $"https://{accountName}.blob.core.windows.net";
+    BlobServiceClient blobServiceClient = new BlobServiceClient(new Uri(blobServiceEndpoint), credential);
+
+
+    // CREATE A CONTAINER
+
+    // Create a unique name for the container
+    string containerName = "wtblob" + Guid.NewGuid().ToString();
+
+    // Create the container and return a container client object
+    Console.WriteLine("Creating container: " + containerName);
+    BlobContainerClient containerClient = 
+        await blobServiceClient.CreateBlobContainerAsync(containerName);
+
+    // Check if the container was created successfully
+    if (containerClient != null)
+    {
+        Console.WriteLine("Container created successfully, press 'Enter' to continue.");
+        Console.ReadLine();
+    }
+    else
+    {
+        Console.WriteLine("Failed to create the container, exiting program.");
+        return;
+    }
+
+
+    // CREATE A LOCAL FILE FOR UPLOAD TO BLOB STORAGE
+
+    // Create a local file in the ./data/ directory for uploading and downloading
+    Console.WriteLine("Creating a local file for upload to Blob storage...");
+    string localPath = "./data/";
+    string fileName = "wtfile" + Guid.NewGuid().ToString() + ".txt";
+    string localFilePath = Path.Combine(localPath, fileName);
+
+    // Write text to the file
+    await File.WriteAllTextAsync(localFilePath, "Hello, World!");
+    Console.WriteLine("Local file created, press 'Enter' to continue.");
+    Console.ReadLine();
+
+
+    // UPLOAD THE FILE TO BLOB STORAGE
+
+    // Get a reference to the blob and upload the file
+    BlobClient blobClient = containerClient.GetBlobClient(fileName);
+
+    Console.WriteLine("Uploading to Blob storage as blob:\n\t {0}", blobClient.Uri);
+
+    // Open the file and upload its data
+    using (FileStream uploadFileStream = File.OpenRead(localFilePath))
+    {
+        await blobClient.UploadAsync(uploadFileStream);
+        uploadFileStream.Close();
+    }
+
+    // Verify if the file was uploaded successfully
+    bool blobExists = await blobClient.ExistsAsync();
+    if (blobExists)
+    {
+        Console.WriteLine("File uploaded successfully, press 'Enter' to continue.");
+        Console.ReadLine();
+    }
+    else
+    {
+        Console.WriteLine("File upload failed, exiting program..");
+        return;
+    }
+
+
+    // LIST BLOBS IN THE CONTAINER
+
+    Console.WriteLine("Listing blobs in container...");
+    await foreach (BlobItem blobItem in containerClient.GetBlobsAsync())
+    {
+        Console.WriteLine("\t" + blobItem.Name);
+    }
+
+    Console.WriteLine("Press 'Enter' to continue.");
+    Console.ReadLine();
+
+
+    // DOWNLOAD THE BLOB TO A LOCAL FILE
+
+    // Adds the string "DOWNLOADED" before the .txt extension so it doesn't 
+    // overwrite the original file
+
+    string downloadFilePath = localFilePath.Replace(".txt", "DOWNLOADED.txt");
+
+    Console.WriteLine("Downloading blob to: {0}", downloadFilePath);
+
+    // Download the blob's contents and save it to a file
+    BlobDownloadInfo download = await blobClient.DownloadAsync();
+
+    using (FileStream downloadFileStream = File.OpenWrite(downloadFilePath))
+    {
+        await download.Content.CopyToAsync(downloadFileStream);
+    }
+
+    Console.WriteLine("Blob downloaded successfully to: {0}", downloadFilePath);
+}
+
+================================================================================
+FIN DEL CÓDIGO Program.cs
+================================================================================
+
+INSTRUCCIONES PARA EDITAR EL CÓDIGO:
+1. Guardar cambios: Ctrl+S
+2. Salir del editor: Ctrl+Q
+
+IMPORTANTE: Reemplazar "YOUR_ACCOUNT_NAME" con el nombre de la cuenta 
+almacenado anteriormente.
+
+================================================================================
+PASO 7: EXPLICACIÓN DEL CÓDIGO
+================================================================================
+
+SECCIÓN 1: INICIALIZACIÓN Y CONFIGURACIÓN
+----
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
+using Azure.Identity;
+----
+Importa las bibliotecas necesarias para trabajar con Azure Blob Storage.
+
+DefaultAzureCredentialOptions: Configura las opciones de autenticación 
+excuyendo credenciales de ambiente e identidades administradas.
+
+SECCIÓN 2: CREAR CLIENTE DE BLOB STORAGE
+----
+string accountName = "YOUR_ACCOUNT_NAME";
+DefaultAzureCredential credential = new DefaultAzureCredential(options);
+string blobServiceEndpoint = $"https://{accountName}.blob.core.windows.net";
+BlobServiceClient blobServiceClient = new BlobServiceClient(new Uri(blobServiceEndpoint), credential);
+----
+- Crea un cliente de servicio de Blob que actúa como punto de entrada
+- Usa DefaultAzureCredential para autenticación segura
+- El endpoint se construye con el nombre de la cuenta de almacenamiento
+
+SECCIÓN 3: CREAR CONTENEDOR
+----
+string containerName = "wtblob" + Guid.NewGuid().ToString();
+BlobContainerClient containerClient = await blobServiceClient.CreateBlobContainerAsync(containerName);
+----
+- Crea un nombre único para el contenedor utilizando GUID
+- Llama a CreateBlobContainerAsync para crear el contenedor
+- Nota: Falla si el contenedor ya existe
+
+SECCIÓN 4: CREAR ARCHIVO LOCAL
+----
+string localPath = "./data/";
+string fileName = "wtfile" + Guid.NewGuid().ToString() + ".txt";
+string localFilePath = Path.Combine(localPath, fileName);
+await File.WriteAllTextAsync(localFilePath, "Hello, World!");
+----
+- Crea archivos con nombres únicos usando GUID
+- Escribe contenido de prueba ("Hello, World!") en el archivo
+
+SECCIÓN 5: CARGAR ARCHIVO A BLOB STORAGE
+----
+BlobClient blobClient = containerClient.GetBlobClient(fileName);
+using (FileStream uploadFileStream = File.OpenRead(localFilePath))
+{
+    await blobClient.UploadAsync(uploadFileStream);
+    uploadFileStream.Close();
+}
+----
+- Obtiene una referencia al blob
+- Abre el archivo local
+- Lo carga a Azure Blob Storage
+
+SECCIÓN 6: LISTAR BLOBS
+----
+await foreach (BlobItem blobItem in containerClient.GetBlobsAsync())
+{
+    Console.WriteLine("\t" + blobItem.Name);
+}
+----
+- Enumera todos los blobs en el contenedor
+- Muestra el nombre de cada blob
+
+SECCIÓN 7: DESCARGAR BLOB
+----
+string downloadFilePath = localFilePath.Replace(".txt", "DOWNLOADED.txt");
+BlobDownloadInfo download = await blobClient.DownloadAsync();
+using (FileStream downloadFileStream = File.OpenWrite(downloadFilePath))
+{
+    await download.Content.CopyToAsync(downloadFileStream);
+}
+----
+- Descarga el blob del almacenamiento a un archivo local
+- Añade "DOWNLOADED" al nombre para evitar sobrescribir el original
+
+================================================================================
+PASO 8: EJECUTAR LA APLICACIÓN
+================================================================================
+
+8.1 - Iniciar sesión en Azure:
+----
+az login
+----
+
+8.2 - Ejecutar la aplicación de consola:
+----
+dotnet run
+----
+
+La aplicación se pausará varias veces esperando que presione Enter para continuar.
+Esto permite ver el progreso en Azure Portal.
+
+8.3 - Verificar en Azure Portal:
+1. Navegar a la cuenta de Azure Storage creada
+2. En el navegador izquierdo: Almacenamiento de datos > Contenedores
+3. Seleccionar el contenedor creado
+4. Ver el blob que se cargó
+
+8.4 - Verificar archivos locales:
+----
+cd data
+ls
+----
+
+Debe mostrar:
+- wtfile[GUID].txt (archivo original)
+- wtfile[GUID]DOWNLOADED.txt (archivo descargado)
+
+================================================================================
+PASO 9: LIMPIAR RECURSOS (OPCIONAL)
+================================================================================
+
+Para eliminar todos los recursos creados:
+----
+az group delete --name $resourceGroup --no-wait
+----
+
+================================================================================
+CONCEPTOS CLAVE
+================================================================================
+
+1. BlobServiceClient: Punto de entrada para administrar contenedores y blobs
+2. BlobContainerClient: Representa un contenedor de blobs
+3. BlobClient: Representa un blob individual
+4. DefaultAzureCredential: Maneja la autenticación automáticamente
+5. Async/Await: Operaciones asincrónicas para mejor rendimiento
+
+================================================================================
+ERRORES COMUNES Y SOLUCIONES
+================================================================================
+
+ERROR: El contenedor ya existe
+SOLUCIÓN: El método CreateBlobContainerAsync falla si el contenedor existe.
+Usar un GUID para garantizar nombres únicos.
+
+ERROR: Autenticación fallida
+SOLUCIÓN: Verificar que az login se ejecutó correctamente
+y que el rol "Storage Blob Data Owner" está asignado.
+
+ERROR: "YOUR_ACCOUNT_NAME" no encontrado
+SOLUCIÓN: Reemplazar en Program.cs con el nombre de la cuenta real.
+Ejecutar "echo $accountName" para obtener el nombre.
+
+================================================================================
+REFERENCIAS Y RECURSOS
+================================================================================
+
+- Documentación oficial: https://learn.microsoft.com/es-es/azure/
+- Azure Storage Blobs: https://learn.microsoft.com/es-es/azure/storage/blobs/
+- Biblioteca cliente .NET: https://github.com/Azure/azure-sdk-for-net
+- Azure CLI: https://learn.microsoft.com/es-es/cli/azure/
+
+================================================================================
+FIN DE LA DOCUMENTACIÓN
+================================================================================
+

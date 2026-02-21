@@ -1,0 +1,29 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Blob storage resources with the .NET client library", "Blob storage resources with the .NET client library", "{89209478-AB65-1D60-46DA-8AD48BE29152}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "azstor", "Blob storage resources with the .NET client library\azstor\azstor.csproj", "{81896275-1C92-367A-D548-280E834296AC}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{81896275-1C92-367A-D548-280E834296AC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{81896275-1C92-367A-D548-280E834296AC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{81896275-1C92-367A-D548-280E834296AC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{81896275-1C92-367A-D548-280E834296AC}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{81896275-1C92-367A-D548-280E834296AC} = {89209478-AB65-1D60-46DA-8AD48BE29152}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {2D85C874-E421-498D-B233-A0C778C66A3E}
+	EndGlobalSection
+EndGlobal
