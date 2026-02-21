@@ -1,0 +1,262 @@
+================================================================================
+DOCUMENTACIÓN: CREAR RECURSOS EN AZURE COSMOS DB PARA NoSQL MEDIANTE .NET
+================================================================================
+
+DESCRIPCIÓN GENERAL:
+En este ejercicio crearás una cuenta de Azure Cosmos DB y una aplicación de
+consola .NET que usa el SDK de Microsoft.Azure.Cosmos para crear una base de
+datos, un contenedor y un elemento de ejemplo. Aprenderás a configurar la
+autenticación, ejecutar operaciones mediante código y verificar los resultados
+en Azure Portal.
+
+DURACIÓN ESTIMADA: 30 minutos
+
+TAREAS REALIZADAS:
+- Crear una cuenta de Azure Cosmos DB
+- Crear una aplicación de consola que cree una base de datos, un contenedor y
+  un elemento
+- Ejecutar la aplicación y verificar los resultados
+
+================================================================================
+PASO 1: CREAR LA CUENTA DE AZURE COSMOS DB
+================================================================================
+
+1.1 - Accede al Portal de Azure:
+URL: https://portal.azure.com
+
+1.2 - Abrir Cloud Shell (Bash):
+- Botón [>_] a la derecha de la barra de búsqueda
+- Seleccionar Bash (si está en PowerShell, cambiar a Bash)
+- En Configuración > "Ir a la versión clásica" para usar el editor
+
+1.3 - Crear grupo de recursos (si es necesario):
+Comando:
+----
+az group create --location eastus --name myResourceGroup
+----
+
+(En este laboratorio el grupo puede estar ya creado: myResourceGrouplod59337285)
+
+1.4 - Crear variables utilizadas por los comandos:
+----
+resourceGroup=myResourceGrouplod59337285
+accountName=cosmosexercise59337285
+----
+
+1.5 - Crear la cuenta de Cosmos DB:
+----
+az cosmosdb create --name $accountName \
+    --resource-group $resourceGroup
+----
+
+1.6 - Obtener el endpoint (documentEndpoint):
+----
+az cosmosdb show --name $accountName \
+    --resource-group $resourceGroup \
+    --query "documentEndpoint" --output tsv
+----
+
+1.7 - Obtener la clave primaria (ACCOUNT_KEY):
+----
+az cosmosdb keys list --name $accountName \
+    --resource-group $resourceGroup \
+    --query "primaryMasterKey" --output tsv
+----
+
+Registra ambos valores (DOCUMENT_ENDPOINT y ACCOUNT_KEY) para el siguiente
+paso.
+
+================================================================================
+PASO 2: CREAR LA APLICACIÓN DE CONSOLA .NET
+================================================================================
+
+2.1 - Crear carpeta del proyecto y entrar:
+----
+mkdir cosmosdb
+cd cosmosdb
+----
+
+2.2 - Crear la plantilla de consola .NET:
+----
+dotnet new console
+----
+
+2.3 - Agregar paquetes NuGet requeridos:
+----
+dotnet add package Microsoft.Azure.Cosmos --version 3.*
+dotnet add package Newtonsoft.Json --version 13.*
+dotnet add package dotenv.net
+----
+
+2.4 - Crear el archivo .env para las credenciales y editarlo:
+----
+touch .env
+code .env
+----
+
+Contenido recomendado para .env (reemplaza los valores):
+----
+DOCUMENT_ENDPOINT="YOUR_DOCUMENT_ENDPOINT"
+ACCOUNT_KEY="YOUR_ACCOUNT_KEY"
+----
+
+Guardar y cerrar (Ctrl+S, Ctrl+Q en editor de Cloud Shell).
+
+================================================================================
+PASO 3: CÓDIGO DE LA APLICACIÓN (Program.cs)
+================================================================================
+
+Abre el archivo Program.cs en el editor: `code Program.cs`
+Reemplaza el contenido con el siguiente código (asegúrate de ajustar el
+archivo .env con tus credenciales antes de ejecutar):
+
+================================================================================
+CÓDIGO COMPLETO A PEGAR EN Program.cs
+================================================================================
+using System;
+using Microsoft.Azure.Cosmos;
+using dotenv.net;
+using System.Threading.Tasks;
+
+string databaseName = "myDatabase"; // Nombre de la base de datos
+string containerName = "myContainer"; // Nombre del contenedor
+
+// Cargar variables de entorno desde .env
+DotEnv.Load();
+var envVars = DotEnv.Read();
+string cosmosDbAccountUrl = envVars["DOCUMENT_ENDPOINT"];
+string accountKey = envVars["ACCOUNT_KEY"];
+
+if (string.IsNullOrEmpty(cosmosDbAccountUrl) || string.IsNullOrEmpty(accountKey))
+{
+    Console.WriteLine("Please set the DOCUMENT_ENDPOINT and ACCOUNT_KEY environment variables.");
+    return;
+}
+
+// CREATE THE COSMOS DB CLIENT USING THE ACCOUNT URL AND KEY
+CosmosClient client = new(
+    accountEndpoint: cosmosDbAccountUrl,
+    authKeyOrResourceToken: accountKey
+);
+
+try
+{
+    // CREATE A DATABASE IF IT DOESN'T ALREADY EXIST
+    Database database = await client.CreateDatabaseIfNotExistsAsync(databaseName);
+    Console.WriteLine($"Created or retrieved database: {database.Id}");
+
+    // CREATE A CONTAINER WITH A SPECIFIED PARTITION KEY
+    Container container = await database.CreateContainerIfNotExistsAsync(
+        id: containerName,
+        partitionKeyPath: "/id"
+    );
+    Console.WriteLine($"Created or retrieved container: {container.Id}");
+
+    // DEFINE A TYPED ITEM (PRODUCT) TO ADD TO THE CONTAINER
+    Product newItem = new Product
+    {
+        id = Guid.NewGuid().ToString(),
+        name = "Sample Item",
+        description = "This is a sample item in my Azure Cosmos DB exercise."
+    };
+
+    // ADD THE ITEM TO THE CONTAINER
+    ItemResponse<Product> createResponse = await container.CreateItemAsync(
+        item: newItem,
+        partitionKey: new PartitionKey(newItem.id)
+    );
+
+    Console.WriteLine($"Created item with ID: {createResponse.Resource.id}");
+    Console.WriteLine($"Request charge: {createResponse.RequestCharge} RUs");
+}
+catch (CosmosException ex)
+{
+    Console.WriteLine($"Cosmos DB Error: {ex.StatusCode} - {ex.Message}");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Error: {ex.Message}");
+}
+
+// Clases de datos
+public class Product
+{
+    public string? id { get; set; }
+    public string? name { get; set; }
+    public string? description { get; set; }
+}
+
+================================================================================
+NOTAS SOBRE EL CÓDIGO:
+- Se usa `dotenv.net` para cargar `DOCUMENT_ENDPOINT` y `ACCOUNT_KEY` desde `.env`.
+- `CosmosClient` se inicializa con el URL y la clave primaria.
+- `CreateDatabaseIfNotExistsAsync` y `CreateContainerIfNotExistsAsync` son
+  operaciones idempotentes: crean si no existen.
+- Se usa `/id` como clave de partición en este ejemplo; en escenarios reales
+  elige una ruta de partición adecuada al patrón de consultas.
+
+================================================================================
+PASO 4: COMPILAR Y EJECUTAR
+================================================================================
+
+4.1 - Compilar:
+----
+dotnet build
+----
+
+4.2 - Ejecutar:
+----
+dotnet run
+----
+
+Salida esperada (ejemplo):
+----
+Created or retrieved database: myDatabase
+Created or retrieved container: myContainer
+Created item with ID: c549c3fa-054d-40db-a42b-c05deabbc4a6
+Request charge: 6.29 RUs
+----
+
+================================================================================
+PASO 5: VERIFICAR EN AZURE PORTAL
+================================================================================
+
+- En Azure Portal, navega a tu cuenta de Cosmos DB
+- En la navegación izquierda: "Data Explorer"
+- Expande la base de datos y el contenedor para ver el elemento creado
+
+================================================================================
+PASO 6: LIMPIAR RECURSOS (OPCIONAL)
+================================================================================
+
+Para eliminar los recursos creados, borra el grupo de recursos:
+----
+az group delete --name $resourceGroup --no-wait
+----
+
+================================================================================
+ERRORES COMUNES Y SOLUCIONES
+================================================================================
+
+ERROR: DOCUMENT_ENDPOINT o ACCOUNT_KEY vacíos
+SOLUCIÓN: Asegúrate de que el archivo .env contiene los valores correctos y
+vuelve a cargar las variables (o cerrar/reabrir la sesión de shell si aplica).
+
+ERROR: Permisos o autenticación fallida
+SOLUCIÓN: Verifica la cuenta y la clave primaria, y que la cuenta de Cosmos DB
+exista en el grupo de recursos correcto.
+
+ERROR: Problemas de partición
+SOLUCIÓN: Asegúrate de usar una clave de partición que distribuya la carga.
+
+================================================================================
+REFERENCIAS
+================================================================================
+
+- Azure Cosmos DB .NET SDK: https://learn.microsoft.com/azure/cosmos-db/
+- Paquete Microsoft.Azure.Cosmos: https://www.nuget.org/packages/Microsoft.Azure.Cosmos
+- dotenv.net: https://www.nuget.org/packages/dotenv.net
+
+================================================================================
+FIN DE LA DOCUMENTACIÓN
+================================================================================
