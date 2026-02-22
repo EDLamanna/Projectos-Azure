@@ -1,0 +1,74 @@
+name: Build, push image and deploy to Azure Container Apps
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-push-deploy:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: aci-tutorial-app
+      CONTAINERAPP_NAME: my-container-app
+      RESOURCE_GROUP: myResourceGroup
+      ENVIRONMENT_NAME: my-container-env
+      TARGET_PORT: '80'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Determine image target
+        id: image-target
+        run: |
+          if [[ -n "${{ secrets.DOCKERHUB_USERNAME }}" && -n "${{ secrets.DOCKERHUB_TOKEN }}" ]]; then
+            echo "IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_ENV
+            echo "PUSH_TARGET=dockerhub" >> $GITHUB_ENV
+          else
+            echo "IMAGE=ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_ENV
+            echo "PUSH_TARGET=ghcr" >> $GITHUB_ENV
+          fi
+
+      - name: Login to registry (Docker Hub)
+        if: env.PUSH_TARGET == 'dockerhub'
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to GHCR
+        if: env.PUSH_TARGET == 'ghcr'
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: './Imagen de contenedor para su implementación en Azure Container Instances/aci-helloworld'
+          push: true
+          tags: ${{ env.IMAGE }}
+
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure Container Apps
+        run: |
+          echo "Deploying image: $IMAGE"
+          az account show --query id
+          az containerapp create \
+            --name $CONTAINERAPP_NAME \
+            --resource-group $RESOURCE_GROUP \
+            --environment $ENVIRONMENT_NAME \
+            --image $IMAGE \
+            --target-port $TARGET_PORT \
+            --ingress 'external' \
+            --query properties.configuration.ingress.fqdn -o tsv
